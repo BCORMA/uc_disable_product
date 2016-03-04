@@ -1,0 +1,166 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Product Disable module
+ *
+ * Allow to hide product price and disable "Add to cart" button.
+ * Also allow to disable "Add to wish list" button if module 'uc_wishlist' is in use.
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ * 
+ */
+function uc_disable_product_form_alter(&$form, $form_state, $form_id) {
+  if (isset($form['type']) && isset($form['#node']) && $form_id == $form['type']['#value'].'_node_form') {
+    $list = uc_disable_product_get_classes_list();
+    if (!in_array($form['#node']->type, $list)) return;
+    $node = $form['#node'];
+    $form['base']['hide_price'] = array(
+      '#type'           => 'checkbox',
+      '#title'          => t('Hide product price.'),
+      '#default_value'  => isset($node->hide_price) ? $node->hide_price : FALSE,
+      '#weight'         => 11,
+    );
+    $form['base']['disable_add_to_cart'] = array(
+      '#type'           => 'checkbox',
+		  '#title'          => t('Product and its derivatives are not available for sale.'),
+		  '#default_value'  => isset($node->disable_add_to_cart) ? $node->disable_add_to_cart : FALSE,
+		  '#weight'         => 11,
+    );
+    if (module_exists('uc_wishlist')) {
+      $form['base']['disable_wishlist'] = array(
+        '#type'           => 'checkbox',
+        '#title'          => t('Product and its derivatives are not available for the wishlist.'),
+        '#default_value'  => isset($node->disable_wishlist) ? $node->disable_wishlist : FALSE,
+        '#weight'         => 11,
+      );
+    }
+  }
+  
+  if (strpos($form_id, 'uc_product_add_to_cart_form_') === 0) {
+    $node = &$form['#parameters'][2];
+    if ($node->hide_price) {
+      unset($node->content['list_price']);
+      unset($node->content['cost']);
+      unset($node->content['sell_price']);
+      unset($node->content['display_price']);
+    }
+    if ($node->disable_add_to_cart) {
+      $form['submit']['#access'] = FALSE;
+    }
+    if ($node->disable_wishlist) {
+      $form['wishlist']['#access'] = FALSE;
+    }
+  }
+  
+  if (strpos($form_id, 'uc_catalog_buy_it_now_form_') === 0) {
+    $node = $form['#parameters'][2];
+    if ($node->disable_add_to_cart) {
+      $form['submit']['#access'] = FALSE;
+    }
+  }
+  
+  if ($form_id == 'uc_wishlist_view_form') {
+    foreach ($form['items'] as $key => $value) {
+      if (!isset($value['nid'])) continue;
+      $nid = $value['nid']['#value'];
+      $params = uc_disable_product_get_params(array($nid), 'nid');
+      if ($params[$nid]->disable_add_to_cart) $value['addcart']['#access'] = false;
+      if ($params[$nid]->hide_price) $value['#total'] = 0;
+      $form['items'][$key] = $value;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_tapir_table_alter().
+ */
+function uc_disable_product_tapir_table_alter(&$table, $table_id) {
+  if ($table_id == 'uc_product_table') {
+    $params = uc_disable_product_get_params($table['#parameters'][1], 'nid');
+    foreach($table['#parameters'][1] as $key => $id) {
+      if ($params[$id]->hide_price) {
+        if (isset($table[$key]['price'])) $table[$key]['price']['#value'] = '';
+        if (isset($table[$key]['list_price'])) $table[$key]['list_price']['#value'] = '';
+        if (isset($table[$key]['cost'])) $table[$key]['cost']['#value'] = '';
+      }
+    }
+  }
+}
+
+/**
+ * Get additional parameters of products.
+ * @param   array   $ids    - array of product nids or vids;
+ * @param   string  $field  - field to search in ('vid' or 'nid');
+ * @return  array           - array with additional parameters objects
+ */
+function uc_disable_product_get_params($ids, $field = 'nid') {
+  $params = array();
+  $query = "SELECT ".$field.", hide_price, disable_add_to_cart, disable_wishlist
+            FROM {uc_products}";
+  
+  switch ($field) {
+    case 'nid':
+      $query .= " WHERE nid IN (".implode(',', $ids).")";
+      break;
+    case 'vid':
+      $query .= " WHERE vid IN (".implode(',', $ids).")";
+      break;
+    default:
+      $query = '';
+  }
+  
+  if ($query) {
+    $result = db_query($query);
+    while ($product_params = db_fetch_object($result)) {
+      $params[$product_params->$field] = $product_params;
+    }
+  }
+  return $params;
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function uc_disable_product_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  $list = uc_disable_product_get_classes_list();
+  if (in_array($node->type, $list)) {
+    switch ($op) {
+      case 'load':
+        $query = "SELECT hide_price, disable_add_to_cart, disable_wishlist
+                  FROM {uc_products}
+                  WHERE vid = %d AND nid = %d";
+        $result = db_query($query, $node->vid, $node->nid);
+        $additions = db_fetch_array($result);
+        return $additions;
+      case 'insert':
+      case 'update':
+        $query = "UPDATE {uc_products}
+                  SET hide_price = %d,
+                      disable_add_to_cart = %d,
+                      disable_wishlist = %d
+                  WHERE vid = %d AND nid = %d";
+        db_query($query,
+                 $node->hide_price, $node->disable_add_to_cart, $node->disable_wishlist,
+                 $node->vid, $node->nid);
+        break;
+    }
+  }
+}
+
+/**
+ * Get list of product classes.
+ * @return  array       - array of classes
+ */
+function uc_disable_product_get_classes_list() {
+  $temp = array();
+  $result = db_query("SELECT * FROM {uc_product_classes}");
+  while ($class = db_fetch_object($result)) {
+    $temp[] = $class->pcid;
+  }
+  $temp[] = 'product';
+  return $temp;
+}

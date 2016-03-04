@@ -1,0 +1,14 @@
+; $Id$
+name = Product Disable
+description = Allow to hide product price and disable "Add to cart" button. Also allow to disable "Add to wish list" button if module 'uc_wishlist' is in use.
+core = 6.x
+version = 6.x-1.2
+package = Ubercart - extra
+dependencies[] = uc_cart
+dependencies[] = uc_product
+; Information added by drupal.org packaging script on 2013-10-19
+version = "6.x-1.x-dev"
+core = "6.x"
+project = "uc_disable_product"
+datestamp = "1382149040"
+

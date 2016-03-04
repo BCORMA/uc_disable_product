@@ -1,0 +1,57 @@
+<?php
+
+/**
+ * Implementation of hook_schema_alter().
+ * @param   array   &$schema    - table schema to alter;
+ */
+function uc_disable_product_schema_alter(&$schema) {
+  $schema['uc_products']['fields']['hide_price'] = array(
+    'type'      => 'int',
+    'size'      => 'tiny',
+    'not null'  => TRUE,
+    'default'   => 0,
+  );
+  $schema['uc_products']['fields']['disable_add_to_cart'] = array(
+    'type'      => 'int',
+    'size'      => 'tiny',
+    'not null'  => TRUE,
+    'default'   => 0,
+  );
+  $schema['uc_products']['fields']['disable_wishlist'] = array(
+    'type'      => 'int',
+    'size'      => 'tiny',
+    'not null'  => TRUE,
+    'default'   => 0,
+  );
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function uc_disable_product_install() {
+  $ret = array();
+  $new_schema = array();
+  uc_disable_product_schema_alter($new_schema);
+  foreach ($new_schema['uc_products']['fields'] as $name => $spec) {
+    db_add_field($ret, 'uc_products', $name, $spec);
+  }
+  uc_disable_product_update_1();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function uc_disable_product_uninstall() {
+  $ret = array();
+  $new_schema = array();
+  uc_disable_product_schema_alter($new_schema);
+  foreach ($new_schema['uc_products']['fields'] as $name => $spec) {
+    db_drop_field($ret, 'uc_products', $name);
+  }
+}
+
+function uc_disable_product_update_1() {
+  $ret = array();
+  $ret[] = update_sql("UPDATE {system} SET weight = 10 WHERE name = 'uc_disable_product'");
+  return $ret;
+}
