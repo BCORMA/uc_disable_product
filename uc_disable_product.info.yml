@@ -1,6 +1,6 @@
 name: Product Disable
 type: module
-description: 'Allow to hide product price and disable "Add to cart" button. Also allow to disable "Add to wish list" button if module 'uc_wishlist' is in use.'
+description: "Allow to hide product price and disable 'Add to cart' button. Also allow to disable 'Add to wish list' button if module 'uc_wishlist' is in use."
 core: 8.x
 version: 8.x-1.0
 package: Ubercart - extra
